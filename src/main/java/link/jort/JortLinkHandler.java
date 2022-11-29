@@ -23,6 +23,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
+import org.eclipse.jetty.http.HttpHeader;
 import org.eclipse.jetty.http.HttpStatus;
 import org.eclipse.jetty.io.EofException;
 import org.eclipse.jetty.server.Request;
@@ -36,7 +37,6 @@ import com.google.common.base.Splitter;
 import com.google.common.base.Strings;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
-import com.google.common.collect.Iterables;
 import com.google.common.escape.Escaper;
 import com.google.common.escape.Escapers;
 import com.google.common.hash.Hashing;
@@ -81,8 +81,6 @@ public final class JortLinkHandler extends AbstractHandler {
 			.softValues()
 			.build();
 	
-	private static final Splitter ACCEPT_SPLITTER = Splitter.on(',').trimResults().omitEmptyStrings();
-	
 	private static final Splitter SLASH_SPLITTER2 = Splitter.on('/').limit(2).omitEmptyStrings();
 	private static final Splitter SLASH_SPLITTER3 = Splitter.on('/').limit(3).omitEmptyStrings();
 	
@@ -94,8 +92,8 @@ public final class JortLinkHandler extends AbstractHandler {
 			.build();
 
 	@Override
-	public void handle(String target, Request baseRequest, HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
-		baseRequest.setHandled(true);
+	public void handle(String target, Request request, HttpServletRequest bareServletRequest, HttpServletResponse response) throws IOException, ServletException {
+		request.setHandled(true);
 		Host host = Host.of(request.getHeader("Host"));
 		if (host == null) {
 			response.sendError(421);
@@ -198,7 +196,7 @@ public final class JortLinkHandler extends AbstractHandler {
 			handleResult(cachedRes, request, response);
 			return;
 		}
-		AsyncContext ctx = baseRequest.startAsync(request, response);
+		AsyncContext ctx = request.startAsync(request, response);
 		String hashDir = hash.substring(0, 2);
 		synchronized (futures) {
 			var future = futures.get(hash);
@@ -358,7 +356,8 @@ public final class JortLinkHandler extends AbstractHandler {
 		}
 	}
 
-	private void handleResult(RequestResult res, HttpServletRequest request, HttpServletResponse response) throws IOException {
+	private void handleResult(RequestResult res, Request request, HttpServletResponse response) throws IOException {
+		response.setHeader("Upstream-Cache", res.cached ? "HIT" : "MISS");
 		if (res.data == null) {
 			if (HttpStatus.isRedirection(res.status)) {
 				sendRedirect(response, res.status, res.message);
@@ -373,9 +372,8 @@ public final class JortLinkHandler extends AbstractHandler {
 			response.setStatus(res.status);
 			response.setHeader("Cache-Control", "public, max-age=86400");
 			response.setHeader("Content-Type", res.contentType);
-			response.setHeader("Upstream-Cache", res.cached ? "HIT" : "MISS");
 			if ("GET".equals(request.getMethod())) {
-				if (res.data instanceof GZIPByteSource gz && canAccept(request, "Accept-Encoding", "gzip")) {
+				if (res.data instanceof GZIPByteSource gz && request.getHttpFields().getQualityCSV(HttpHeader.ACCEPT_ENCODING).contains("gzip")) {
 					// I ended up dummying this out because no fedi software actually supports this, but it may become useful later
 					response.setHeader("Content-Encoding", "gzip");
 					try (var in = gz.openRawStream()) {
@@ -397,14 +395,6 @@ public final class JortLinkHandler extends AbstractHandler {
 		response.setStatus(status);
 		response.setHeader("Location", target);
 		response.getOutputStream().close();
-	}
-
-	private boolean canAccept(HttpServletRequest req, String header, String value) {
-		return req.getHeader(header) != null && Iterables.any(ACCEPT_SPLITTER.split(req.getHeader(header)), t -> {
-			int semi = t.indexOf(';');
-			if (semi != -1) t = t.substring(0, semi);
-			return t.equals(value);
-		});
 	}
 	
 }

@@ -96,6 +96,7 @@ public class JortLink {
 			conn.setPort(port);
 			server.addConnector(conn);
 			server.setHandler(new OuterHandler(new JortLinkHandler()));
+			server.setErrorHandler(new JortErrorHandler());
 			server.start();
 			log.info("Ready on http://{}:{}", host, port);
 			
