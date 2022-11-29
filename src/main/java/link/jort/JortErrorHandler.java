@@ -57,7 +57,10 @@ public class JortErrorHandler extends ErrorHandler {
 	
 	@Override
 	protected void writeErrorPageMessage(HttpServletRequest request, Writer writer, int code, String errorMessage, String uri) throws IOException {
-		String msg = HttpStatus.getMessage(code);
+		String msg = switch (code) {
+			case 509 -> "Bandwidth Limit Exceeded";
+			default -> HttpStatus.getMessage(code);
+		};
 		writer.write("\n<h1>jort.link &mdash; ");
 		writer.write(Integer.toString(code));
 		writer.write(" ");

@@ -49,7 +49,8 @@ public class JortLink {
 	public static final Set<String> ignoredHosts = new HashSet<>();
 	public static final BiMap<String, Host> hosts = HashBiMap.create();
 	public static final List<Pattern> uaPatterns = new ArrayList<>();
-	public static Path cacheDir, filesDir;
+	public static Path cacheDir;
+	public static String filesDir;
 	
 	
 	public static final HttpClient client = HttpClient.newBuilder()
@@ -79,7 +80,7 @@ public class JortLink {
 			int port = config.getInt("port", 17312);
 
 			cacheDir = FileSystems.getDefault().getPath(config.get(String.class, "cache"));
-			filesDir = FileSystems.getDefault().getPath(config.get(String.class, "files"));
+			filesDir = config.get(String.class, "files");
 			
 			config.get(JsonArray.class, "uaPatterns").stream()
 				.mapMulti(JortLink::strings)

@@ -27,7 +27,8 @@ import org.eclipse.jetty.http.HttpHeader;
 import org.eclipse.jetty.http.HttpStatus;
 import org.eclipse.jetty.io.EofException;
 import org.eclipse.jetty.server.Request;
-import org.eclipse.jetty.server.handler.AbstractHandler;
+import org.eclipse.jetty.server.handler.HandlerWrapper;
+import org.eclipse.jetty.server.handler.ResourceHandler;
 import org.jsoup.Jsoup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,7 +55,7 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import static link.jort.JortLink.http;
 
-public final class JortLinkHandler extends AbstractHandler {
+public final class JortLinkHandler extends HandlerWrapper {
 	private static final Logger log = LoggerFactory.getLogger(JortLinkHandler.class);
 
 	private static final long M = 1024*1024;
@@ -90,10 +91,18 @@ public final class JortLinkHandler extends AbstractHandler {
 			.addEscape('<', "%3C")
 			.addEscape('>', "%3E")
 			.build();
+	
+	public JortLinkHandler() {
+		var resource = new ResourceHandler();
+		resource.setResourceBase(JortLink.filesDir.toString());
+		resource.setDirectoriesListed(false);
+		resource.setWelcomeFiles(new String[] {"index.html"});
+		resource.setCacheControl("public, max-age=86400");
+		setHandler(resource);
+	}
 
 	@Override
 	public void handle(String target, Request request, HttpServletRequest bareServletRequest, HttpServletResponse response) throws IOException, ServletException {
-		request.setHandled(true);
 		Host host = Host.of(request.getHeader("Host"));
 		if (host == null) {
 			response.sendError(421);
@@ -138,10 +147,6 @@ public final class JortLinkHandler extends AbstractHandler {
 		} else {
 			split = SLASH_SPLITTER2.split(target).iterator();
 		}
-		if (fedi && !host.cache()) {
-			sendRedirect(response, 307, http+"://"+Host.CACHE+"/"+host+target);
-			return;
-		}
 		if (fedi && effectiveHost.exclude()) {
 			response.setHeader("Cache-Control", "public, max-age=86400");
 			response.setStatus(204);
@@ -149,10 +154,19 @@ public final class JortLinkHandler extends AbstractHandler {
 			return;
 		}
 		if (!split.hasNext()) {
-			sendRedirect(response, 301, http+"://"+Host.FRONT);
+			serveFile(host, target, request, bareServletRequest, response);
 			return;
 		}
 		String tgtHost = split.next();
+		if (!InternetDomainName.isValid(tgtHost)) {
+			serveFile(host, target, request, bareServletRequest, response);
+			return;
+		}
+		var idn = InternetDomainName.from(tgtHost);
+		if (!idn.hasRegistrySuffix() || idn.isRegistrySuffix()) {
+			serveFile(host, target, request, bareServletRequest, response);
+			return;
+		}
 		String uri;
 		if (split.hasNext()) {
 			uri = "/"+split.next()+Strings.nullToEmpty(request.getQueryString());
@@ -169,9 +183,8 @@ public final class JortLinkHandler extends AbstractHandler {
 			sendRedirect(response, 301, tgtUri);
 			return;
 		}
-		var idn = InternetDomainName.from(tgtHost);
-		if (!idn.hasRegistrySuffix() || idn.isRegistrySuffix()) {
-			response.sendError(404);
+		if (fedi && !host.cache()) {
+			sendRedirect(response, 307, http+"://"+Host.CACHE+"/"+host+target);
 			return;
 		}
 		InetAddress[] addrs;
@@ -354,6 +367,15 @@ public final class JortLinkHandler extends AbstractHandler {
 				ctx.complete();
 			});
 		}
+	}
+
+	private void serveFile(Host host, String target, Request request, HttpServletRequest bareServletRequest, HttpServletResponse response) throws IOException, ServletException {
+		if (host != Host.FRONT) {
+			sendRedirect(response, 301, http+"://"+Host.FRONT+target+Strings.nullToEmpty(request.getQueryString()));
+			return;
+		}
+		request.setHandled(false);
+		super.handle(target, request, bareServletRequest, response);
 	}
 
 	private void handleResult(RequestResult res, Request request, HttpServletResponse response) throws IOException {
