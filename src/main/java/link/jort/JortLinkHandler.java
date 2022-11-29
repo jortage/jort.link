@@ -171,7 +171,7 @@ public final class JortLinkHandler extends HandlerWrapper {
 		}
 		String uri;
 		if (split.hasNext()) {
-			uri = "/"+split.next()+Strings.nullToEmpty(request.getQueryString());
+			uri = "/"+split.next()+urifyQuery(request.getQueryString());
 		} else {
 			uri = "";
 		}
@@ -350,6 +350,11 @@ public final class JortLinkHandler extends HandlerWrapper {
 		}
 	}
 
+	private String urifyQuery(String str) {
+		if (str == null) return "";
+		return "?"+str;
+	}
+
 	private Consumer<? super Element> processLink(String value) {
 		return (ele) -> {
 			if (isCanonicalMeta(ele.attr("name")) || isCanonicalMeta(ele.attr("property"))
@@ -367,9 +372,7 @@ public final class JortLinkHandler extends HandlerWrapper {
 							// fall-thru
 						case "https":
 							var path = Strings.nullToEmpty(contentUri.getRawPath());
-							var query = contentUri.getRawQuery();
-							if (query == null) query = "";
-							else query = "?"+query;
+							var query = urifyQuery(contentUri.getRawQuery());
 							ele.attr(value, http+"://"+Host.CACHE+"/"+outHost+"/"+contentUri.getAuthority()+path+query);
 							break;
 					}
@@ -391,7 +394,7 @@ public final class JortLinkHandler extends HandlerWrapper {
 
 	private void serveFile(Host host, String target, Request request, HttpServletRequest bareServletRequest, HttpServletResponse response) throws IOException, ServletException {
 		if (host != Host.FRONT) {
-			sendRedirect(response, 301, http+"://"+Host.FRONT+target+Strings.nullToEmpty(request.getQueryString()));
+			sendRedirect(response, 301, http+"://"+Host.FRONT+target+urifyQuery(request.getQueryString()));
 			return;
 		}
 		request.setHandled(false);
