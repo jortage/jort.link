@@ -110,10 +110,6 @@ public final class JortLinkHandler extends HandlerWrapper {
 			response.sendError(421);
 			return;
 		}
-		if (target.startsWith("/.well-known/")) {
-			serveFile(host, target, request, bareServletRequest, response);
-			return;
-		}
 		response.setHeader("Referrer-Policy", "no-referrer");
 		switch (request.getMethod()) {
 			case "OPTIONS":
@@ -127,6 +123,11 @@ public final class JortLinkHandler extends HandlerWrapper {
 			default:
 				response.sendError(405);
 				return;
+		}
+		if (target.startsWith("/.well-known/")) {
+			request.setHandled(false);
+			super.handle(target, request, bareServletRequest, response);
+			return;
 		}
 		String ua = request.getHeader("User-Agent");
 		boolean fedi = false;
