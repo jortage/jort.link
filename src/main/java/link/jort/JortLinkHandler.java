@@ -122,7 +122,6 @@ public final class JortLinkHandler extends AbstractHandler {
 				break;
 			}
 		}
-		String tgtHost = null;
 		response.setHeader("Vary", "User-Agent");
 		Iterator<String> split;
 		Host effectiveHost = host;
@@ -136,17 +135,10 @@ public final class JortLinkHandler extends AbstractHandler {
 			effectiveHost = Host.of(en);
 			if (effectiveHost == null) {
 				effectiveHost = Host.FRONT;
-				tgtHost = en;
+				split = SLASH_SPLITTER2.split(target).iterator();
 			}
 		} else {
 			split = SLASH_SPLITTER2.split(target).iterator();
-		}
-		if (tgtHost == null) {
-			if (!split.hasNext()) {
-				sendRedirect(response, 301, http+"://"+Host.FRONT);
-				return;
-			}
-			tgtHost = split.next();
 		}
 		if (fedi && !host.cache()) {
 			sendRedirect(response, 307, http+"://"+Host.CACHE+"/"+host+target);
@@ -158,6 +150,11 @@ public final class JortLinkHandler extends AbstractHandler {
 			response.getOutputStream().close();
 			return;
 		}
+		if (!split.hasNext()) {
+			sendRedirect(response, 301, http+"://"+Host.FRONT);
+			return;
+		}
+		String tgtHost = split.next();
 		String uri;
 		if (split.hasNext()) {
 			uri = "/"+split.next()+Strings.nullToEmpty(request.getQueryString());
