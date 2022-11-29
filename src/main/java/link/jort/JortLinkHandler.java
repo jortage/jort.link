@@ -58,7 +58,6 @@ public final class JortLinkHandler extends AbstractHandler {
 	private static final Logger log = LoggerFactory.getLogger(JortLinkHandler.class);
 
 	private static final long M = 1024*1024;
-	private static final long DAY = 24*60*60*1000;
 	
 	record RequestResult(ByteSource data, String contentType, boolean cached, int status, String message) {
 		
@@ -211,7 +210,7 @@ public final class JortLinkHandler extends AbstractHandler {
 				future = CompletableFuture.supplyAsync(() -> {
 					try {
 						var file = JortLink.cacheDir.resolve(hashDir).resolve(hash);
-						if (Files.exists(file) && Files.getLastModifiedTime(file).toMillis() > System.currentTimeMillis()-DAY) {
+						if (Files.exists(file) && !JortLink.isExpired(file)) {
 							var bs = MoreFiles.asByteSource(file);
 							try (var in = new CountingInputStream(bs.openStream())) {
 								var dis = new DataInputStream(in);
