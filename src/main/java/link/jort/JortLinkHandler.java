@@ -79,6 +79,7 @@ public final class JortLinkHandler extends AbstractHandler {
 	private final Cache<String, RequestResult> pasts = CacheBuilder.newBuilder()
 			.expireAfterAccess(2, TimeUnit.HOURS)
 			.maximumSize(1024)
+			.softValues()
 			.build();
 	
 	private static final Splitter ACCEPT_SPLITTER = Splitter.on(',').trimResults().omitEmptyStrings();
@@ -109,6 +110,7 @@ public final class JortLinkHandler extends AbstractHandler {
 				break;
 			}
 		}
+		String tgtHost = null;
 		response.setHeader("Vary", "User-Agent");
 		Iterator<String> split;
 		Host effectiveHost = host;
@@ -118,17 +120,21 @@ public final class JortLinkHandler extends AbstractHandler {
 				sendRedirect(response, 307, http+"://"+Host.FRONT);
 				return;
 			}
-			effectiveHost = Host.of(split.next());
+			var en = split.next();
+			effectiveHost = Host.of(en);
 			if (effectiveHost == null) {
-				response.sendError(400, "Invalid host");
-				return;
+				effectiveHost = Host.FRONT;
+				tgtHost = en;
 			}
 		} else {
 			split = SLASH_SPLITTER2.split(target).iterator();
 		}
-		if (!split.hasNext()) {
-			sendRedirect(response, 301, http+"://"+Host.FRONT);
-			return;
+		if (tgtHost == null) {
+			if (!split.hasNext()) {
+				sendRedirect(response, 301, http+"://"+Host.FRONT);
+				return;
+			}
+			tgtHost = split.next();
 		}
 		if (fedi && !host.cache()) {
 			sendRedirect(response, 307, http+"://"+Host.CACHE+"/"+host+target);
@@ -139,7 +145,6 @@ public final class JortLinkHandler extends AbstractHandler {
 			response.getOutputStream().close();
 			return;
 		}
-		String tgtHost = split.next();
 		String uri;
 		if (split.hasNext()) {
 			uri = "/"+split.next()+Strings.nullToEmpty(request.getQueryString());
