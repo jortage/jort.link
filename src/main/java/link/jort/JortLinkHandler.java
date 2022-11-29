@@ -102,6 +102,19 @@ public final class JortLinkHandler extends AbstractHandler {
 			response.sendError(421);
 			return;
 		}
+		switch (request.getMethod()) {
+			case "OPTIONS":
+				response.setHeader("Allow", "GET, HEAD, OPTIONS");
+				response.setStatus(204);
+				response.getOutputStream().close();
+				return;
+			case "GET":
+			case "HEAD":
+				break;
+			default:
+				response.sendError(405);
+				return;
+		}
 		String ua = request.getHeader("User-Agent");
 		boolean fedi = false;
 		for (var p : JortLink.uaPatterns) {
@@ -141,6 +154,7 @@ public final class JortLinkHandler extends AbstractHandler {
 			return;
 		}
 		if (fedi && effectiveHost.exclude()) {
+			response.setHeader("Cache-Control", "public, max-age=86400");
 			response.setStatus(204);
 			response.getOutputStream().close();
 			return;
