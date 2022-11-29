@@ -21,6 +21,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.regex.Pattern;
 
 import org.eclipse.jetty.http.HttpHeader;
@@ -30,6 +31,7 @@ import org.eclipse.jetty.server.Request;
 import org.eclipse.jetty.server.handler.HandlerWrapper;
 import org.eclipse.jetty.server.handler.ResourceHandler;
 import org.jsoup.Jsoup;
+import org.jsoup.nodes.Element;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -264,40 +266,19 @@ public final class JortLinkHandler extends HandlerWrapper {
 									// remove large tags that have no meaning here
 									doc.getElementsByTag("svg").remove();
 									doc.getElementsByTag("style").remove();
+									doc.getElementsByTag("script").remove();
 									doc.getElementsByAttributeValue("rel", "stylesheet").remove();
+									doc.getElementsByAttribute("style").forEach((e) -> {
+										e.removeAttr("style");
+									});
+									doc.getElementsByAttribute("data-jortlink-remove").remove();
 									// remove inline images and the like
 									doc.getElementsByAttributeValueStarting("href", "data:").remove();
 									doc.getElementsByAttributeValueStarting("src", "data:").remove();
-									// rewrite meta content links to use jort.link
-									doc.getElementsByTag("meta").forEach((ele) -> {
-										if (ele.hasAttr("name")) {
-											switch (ele.attr("name")) {
-												// don't modify the OpenGraph canonical URL
-												case "og:url":
-													return;
-											}
-										}
-										if (ele.hasAttr("content")
-												&& (ele.attr("content").startsWith("http://") || ele.attr("content").startsWith("https://"))) {
-											try {
-												var absUrl = ele.attr("abs:content");
-												var contentUri = new URI(absUrl);
-												var outHost = Host.FRONT;
-												switch (contentUri.getScheme()) {
-													case "http":
-														outHost = Host.INSECURE;
-														// fall-thru
-													case "https":
-														var path = Strings.nullToEmpty(contentUri.getRawPath());
-														var query = contentUri.getRawQuery();
-														if (query == null) query = "";
-														else query = "?"+query;
-														ele.attr("content", http+"://"+outHost+"/"+contentUri.getAuthority()+path+query);
-														break;
-												}
-											} catch (URISyntaxException e) {}
-										}
-									});
+									// rewrite potentially interesting links to use jort.link
+									doc.getElementsByTag("meta").forEach(processLink("content"));
+									doc.getElementsByTag("link").forEach(processLink("href"));
+									doc.getElementsByTag("img").forEach(processLink("href"));
 									Charset ch;
 									try {
 										ch = Charset.forName(charset);
@@ -367,6 +348,45 @@ public final class JortLinkHandler extends HandlerWrapper {
 				ctx.complete();
 			});
 		}
+	}
+
+	private Consumer<? super Element> processLink(String value) {
+		return (ele) -> {
+			if (isCanonicalMeta(ele.attr("name")) || isCanonicalMeta(ele.attr("property"))
+					 || isCanonicalMeta(ele.attr("rel"))) {
+				return;
+			}
+			if (ele.hasAttr(value) && (ele.attr(value).startsWith("http://") || ele.attr(value).startsWith("https://"))) {
+				try {
+					var absUrl = ele.attr("abs:"+value);
+					var contentUri = new URI(absUrl);
+					var outHost = Host.FRONT;
+					switch (contentUri.getScheme()) {
+						case "http":
+							outHost = Host.INSECURE;
+							// fall-thru
+						case "https":
+							var path = Strings.nullToEmpty(contentUri.getRawPath());
+							var query = contentUri.getRawQuery();
+							if (query == null) query = "";
+							else query = "?"+query;
+							ele.attr(value, http+"://"+Host.CACHE+"/"+outHost+"/"+contentUri.getAuthority()+path+query);
+							break;
+					}
+				} catch (URISyntaxException e) {}
+			}
+		};
+	}
+
+	private boolean isCanonicalMeta(String attr) {
+		if (attr == null) return true; // to be safe
+		return switch (attr) {
+			case "og:url" -> true;
+			case "canonical" -> true;
+			case "alternate" -> true;
+			case "shortlink" -> true;
+			default -> false;
+		};
 	}
 
 	private void serveFile(Host host, String target, Request request, HttpServletRequest bareServletRequest, HttpServletResponse response) throws IOException, ServletException {
