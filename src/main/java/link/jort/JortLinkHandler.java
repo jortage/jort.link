@@ -362,6 +362,7 @@ public final class JortLinkHandler extends AbstractHandler {
 				response.setContentLengthLong(l);
 			}
 			response.setStatus(res.status);
+			response.setHeader("Cache-Control", "public, max-age=86400");
 			response.setHeader("Content-Type", res.contentType);
 			response.setHeader("Upstream-Cache", res.cached ? "HIT" : "MISS");
 			if ("GET".equals(request.getMethod())) {
