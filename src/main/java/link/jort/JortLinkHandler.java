@@ -328,10 +328,8 @@ public final class JortLinkHandler extends AbstractHandler {
 						return new RequestResult(500, "Internal server error");
 					}
 				}).whenComplete((res, t) -> {
-					if (res.data != null) {
-						synchronized (pasts) {
-							pasts.put(hash, res.withCached());
-						}
+					synchronized (pasts) {
+						pasts.put(hash, res.withCached());
 					}
 					synchronized (futures) {
 						futures.remove(hash);
@@ -365,6 +363,7 @@ public final class JortLinkHandler extends AbstractHandler {
 			if (HttpStatus.isRedirection(res.status)) {
 				sendRedirect(response, res.status, res.message);
 			} else {
+				response.setHeader("Cache-Control", "public, max-age=7200");
 				response.sendError(res.status, res.message);
 			}
 		} else {
