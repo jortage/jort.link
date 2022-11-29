@@ -110,6 +110,11 @@ public final class JortLinkHandler extends HandlerWrapper {
 			response.sendError(421);
 			return;
 		}
+		if (target.startsWith("/.well-known/")) {
+			serveFile(host, target, request, bareServletRequest, response);
+			return;
+		}
+		response.setHeader("Referrer-Policy", "no-referrer");
 		switch (request.getMethod()) {
 			case "OPTIONS":
 				response.setHeader("Allow", "GET, HEAD, OPTIONS");
