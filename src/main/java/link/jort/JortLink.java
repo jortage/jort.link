@@ -51,6 +51,7 @@ public class JortLink {
 	public static final List<Pattern> uaPatterns = new ArrayList<>();
 	public static Path cacheDir;
 	public static String filesDir;
+	public static boolean useCacheDomain;
 	
 	
 	public static final HttpClient client = HttpClient.newBuilder()
@@ -81,6 +82,8 @@ public class JortLink {
 
 			cacheDir = FileSystems.getDefault().getPath(config.get(String.class, "cache"));
 			filesDir = config.get(String.class, "files");
+			
+			useCacheDomain = config.getBoolean("useCacheDomain", true);
 			
 			config.get(JsonArray.class, "uaPatterns").stream()
 				.mapMulti(JortLink::strings)

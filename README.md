@@ -24,5 +24,4 @@ If there's interest, I can start publishing pre-built JARs.
 
 ## Running
 Edit config.example.json to match your setup. Then, run the JAR with Java 17. You'll likely want to
-run it behind a reverse proxy to handle TLS, and maybe a caching CDN like bunny.net to reduce origin
-request volume.
+run it behind a reverse proxy to handle TLS.

@@ -187,11 +187,11 @@ public final class JortLinkHandler extends HandlerWrapper {
 		}
 		String tgtHttp = (host.insecure()?"http":"https");
 		String tgtUri = tgtHttp+"://"+tgtHost+uri;
-		if (!host.cache() || JortLink.ignoredHosts.contains(tgtHost)) {
+		if ((JortLink.useCacheDomain ? !host.cache() : !fedi) || JortLink.ignoredHosts.contains(tgtHost)) {
 			sendRedirect(response, 301, tgtUri);
 			return;
 		}
-		if (fedi && !host.cache()) {
+		if (JortLink.useCacheDomain && fedi && !host.cache()) {
 			sendRedirect(response, 307, http+"://"+Host.CACHE+"/"+host+target);
 			return;
 		}

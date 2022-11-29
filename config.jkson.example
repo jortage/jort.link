@@ -1,28 +1,40 @@
 bind: "127.0.0.1"
 port: 17312
 
+// Where to store cached third-party files (prefixed with some meta info)
 cache: "./cache"
+// Where to retrieve static files, for things like the website index or Let's Encrypt challenges.
 files: "./www"
-https: true
+https: false
+// The cache domain is a weird workaround for limitations in CDNs
+// If you're serving directly, you can turn this off for less redirects
+useCacheDomain: false
 
 hosts: {
+	// The main domain everyone talks to
 	front: "jort.link"
+	// The "cache" domain, if enabled. Fedi software is redirected here
 	cache: "fedi.jort.link"
+	// The "insecure" domain, signalling the destination uses unencrypted HTTP
 	insecure: "h.jort.link"
+	// The "exclude" domain, returns 204s to fedi software
 	exclude: "x.jort.link"
+	// The combination of the two above
 	insecure_exclude: "hx.jort.link"
 }
 
+// Hosts that don't need our help but people are likely to link through us anyway
 ignoredHosts: [
 	"twitter.com"
 	"github.com"
 	"patreon.com"
 ]
 
+// Fedi software user agent regexes
 uaPatterns: [
 	"^http\\.rb/\\S+\\s\\(Mastodon"
-	"^(Pler|Akk)oma\s"
-	"^Friendica\s"
+	"^(Pler|Akk)oma\\s"
+	"^Friendica\\s"
 	"^SummalyBot/"
 	"^(Miss|Calc|Found)[Kk]ey/"
 ]
