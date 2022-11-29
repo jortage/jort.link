@@ -1,0 +1,28 @@
+bind: "127.0.0.1"
+port: 17312
+
+cache: "./cache"
+files: "./www"
+https: true
+
+hosts: {
+	front: "jort.link"
+	cache: "fedi.jort.link"
+	insecure: "h.jort.link"
+	exclude: "x.jort.link"
+	insecure_exclude: "hx.jort.link"
+}
+
+ignoredHosts: [
+	"twitter.com"
+	"github.com"
+	"patreon.com"
+]
+
+uaPatterns: [
+	"^http\\.rb/\\S+\\s\\(Mastodon"
+	"^(Pler|Akk)oma\s"
+	"^Friendica\s"
+	"^SummalyBot/"
+	"^(Miss|Calc|Found)[Kk]ey/"
+]

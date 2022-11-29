@@ -1,0 +1,30 @@
+plugins {
+	id 'java'
+	id 'com.github.johnrengelman.shadow' version '7.1.2'
+}	
+
+sourceCompatibility = targetCompatibility = 17
+
+repositories {
+	mavenCentral()
+	maven { url 'https://repo.unascribed.com' }
+}
+
+dependencies {
+	implementation 'blue.endless:jankson:1.2.1'
+	implementation 'com.google.guava:guava:31.1-jre'
+	implementation 'org.jsoup:jsoup:1.15.3'
+	
+	implementation('org.eclipse.jetty:jetty-server:11.0.12') {
+		exclude group: 'org.slf4j'
+	}
+	
+	implementation 'org.slf4j:slf4j-api:1.7.9'
+	implementation 'com.unascribed:asyncsimplelog:4.6.1'
+}
+
+shadowJar {
+	manifest.attributes (
+		'Main-Class': 'link.jort.JortLink'
+	)
+}
