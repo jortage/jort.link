@@ -15,6 +15,7 @@ import java.nio.charset.IllegalCharsetNameException;
 import java.nio.charset.StandardCharsets;
 import java.nio.charset.UnsupportedCharsetException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -25,7 +26,6 @@ import java.util.function.Consumer;
 import java.util.regex.Pattern;
 
 import org.eclipse.jetty.http.CompressedContentFormat;
-import org.eclipse.jetty.http.HttpHeader;
 import org.eclipse.jetty.http.HttpStatus;
 import org.eclipse.jetty.io.EofException;
 import org.eclipse.jetty.server.Request;
@@ -44,7 +44,6 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.escape.Escaper;
 import com.google.common.escape.Escapers;
 import com.google.common.hash.Hashing;
-import com.google.common.io.ByteSource;
 import com.google.common.io.ByteStreams;
 import com.google.common.io.CountingInputStream;
 import com.google.common.io.CountingOutputStream;
@@ -63,18 +62,18 @@ public final class JortLinkHandler extends HandlerWrapper {
 
 	private static final long M = 1024*1024;
 	
-	record RequestResult(ByteSource data, String contentType, boolean cached, int status, String message) {
+	record RequestResult(Path file, long offset, String contentType, boolean cached, int status, String message) {
 		
-		public RequestResult(ByteSource data, String contentType, boolean cached, int status) {
-			this(data, contentType, cached, status, null);
+		public RequestResult(Path file, long offset, String contentType, boolean cached, int status) {
+			this(file, offset, contentType, cached, status, null);
 		}
 		
 		public RequestResult(int status, String message) {
-			this(null, null, false, status, message);
+			this(null, 0, null, false, status, message);
 		}
 		
 		public RequestResult withCached() {
-			return new RequestResult(data, contentType, true, status, message);
+			return new RequestResult(file, offset, contentType, true, status, message);
 		}
 	}
 
@@ -221,7 +220,7 @@ public final class JortLinkHandler extends HandlerWrapper {
 		String hash = Hashing.sha256().hashString(tgtUri, Charsets.UTF_8).toString();
 		response.setHeader("Link", "<"+LINK_ESCAPER.escape(tgtUri)+">; rel=\"canonical\"");
 		var cachedRes = pasts.getIfPresent(hash);
-		if (cachedRes != null) {
+		if (cachedRes != null && (cachedRes.file == null || Files.exists(cachedRes.file))) {
 			handleResult(cachedRes, request, response);
 			return;
 		}
@@ -241,7 +240,7 @@ public final class JortLinkHandler extends HandlerWrapper {
 								String type = dis.readUTF();
 								int status = dis.readUnsignedShort();
 								long ofs = in.getCount();
-								return new RequestResult(bs.slice(ofs, bs.size()-ofs), type, true, status);
+								return new RequestResult(file, ofs, type, true, status);
 							}
 						}
 						var tmpFile = file.resolveSibling(file.getFileName()+".tmp");
@@ -263,7 +262,6 @@ public final class JortLinkHandler extends HandlerWrapper {
 							}
 							int status = resp.statusCode();
 							long offset = 0;
-							long length = 0;
 							MoreFiles.createParentDirectories(tmpFile);
 							try (var in = ByteStreams.limit(resp.body(), 8*M);
 									var out = new CountingOutputStream(Files.newOutputStream(tmpFile))) {
@@ -315,14 +313,13 @@ public final class JortLinkHandler extends HandlerWrapper {
 								dos.writeShort(status);
 								offset = out.getCount();
 								writer.run();
-								length = out.getCount()-offset;
 							} catch (IOException e) {
 								log.warn("Request failed"+errorSuffix, e);
 								return new RequestResult(502, "Request failed");
 							}
 							// the destination may exist if we are re-retrieving after expiring a cache entry
 							Files.move(tmpFile, file, StandardCopyOption.REPLACE_EXISTING);
-							return new RequestResult(MoreFiles.asByteSource(file).slice(offset, length), type, false, status);
+							return new RequestResult(file, offset, type, false, status);
 						} catch (URISyntaxException | InterruptedException e) {
 							log.warn("Request failed"+errorSuffix, e);
 							return new RequestResult(502, "Request failed");
@@ -417,7 +414,7 @@ public final class JortLinkHandler extends HandlerWrapper {
 
 	private void handleResult(RequestResult res, Request request, HttpServletResponse response) throws IOException {
 		response.setHeader("Upstream-Cache", res.cached ? "HIT" : "MISS");
-		if (res.data == null) {
+		if (res.file == null) {
 			if (HttpStatus.isRedirection(res.status)) {
 				sendRedirect(response, res.status, res.message);
 			} else {
@@ -425,23 +422,14 @@ public final class JortLinkHandler extends HandlerWrapper {
 				response.sendError(res.status, res.message);
 			}
 		} else {
-			for (var l : res.data.sizeIfKnown().asSet()) {
-				response.setContentLengthLong(l);
-			}
+			response.setContentLengthLong(Files.size(res.file));
 			response.setStatus(res.status);
 			response.setHeader("Cache-Control", "public, max-age=86400");
 			response.setHeader("Content-Type", res.contentType);
 			if ("GET".equals(request.getMethod())) {
-				if (res.data instanceof GZIPByteSource gz && request.getHttpFields().getQualityCSV(HttpHeader.ACCEPT_ENCODING).contains("gzip")) {
-					// I ended up dummying this out because no fedi software actually supports this, but it may become useful later
-					response.setHeader("Content-Encoding", "gzip");
-					try (var in = gz.openRawStream()) {
-						in.transferTo(response.getOutputStream());
-					}
-				} else {
-					try (var in = res.data.openStream()) {
-						in.transferTo(response.getOutputStream());
-					}
+				try (var in = Files.newInputStream(res.file)) {
+					ByteStreams.skipFully(in, res.offset);
+					in.transferTo(response.getOutputStream());
 				}
 			}
 			try {
