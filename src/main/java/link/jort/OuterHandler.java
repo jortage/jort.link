@@ -21,8 +21,7 @@ public class OuterHandler extends HandlerWrapper {
 	
 	@Override
 	public void handle(String target, Request baseRequest, HttpServletRequest req, HttpServletResponse res) throws IOException, ServletException {
-		res.setHeader("Server", "jort.link");
-		res.setHeader("Powered-By", "Jetty/"+Jetty.VERSION+" Java/"+JAVA_VERSION);
+		res.setHeader("Powered-By", "jort.link/"+JortLink.VERSION+" Jetty/"+Jetty.VERSION+" Java/"+JAVA_VERSION);
 		res.setHeader("Clacks-Overhead", "GNU Natalie Nguyen, Amelia Rose");
 		res.setHeader("Jeans-Teleshorted", Integer.toString((int)(Math.random()*200000)+70));
 		super.handle(target, baseRequest, req, res);

@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 import com.unascribed.asyncsimplelog.AsyncSimpleLog;
 
 import com.google.common.base.Ascii;
+import com.google.common.base.MoreObjects;
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
@@ -35,8 +36,10 @@ import blue.endless.jankson.JsonArray;
 import blue.endless.jankson.JsonElement;
 import blue.endless.jankson.JsonObject;
 import blue.endless.jankson.JsonPrimitive;
+import sun.misc.Signal;
 
 public class JortLink {
+	public static final String VERSION = MoreObjects.firstNonNull(JortLink.class.getPackage().getImplementationVersion(), "DEV");
 
 	private static final Logger log = LoggerFactory.getLogger(JortLink.class);
 	
@@ -53,6 +56,8 @@ public class JortLink {
 	public static String filesDir;
 	public static boolean useCacheDomain;
 	
+	private static Server server;
+	
 	
 	public static final HttpClient client = HttpClient.newBuilder()
 			.followRedirects(Redirect.ALWAYS)
@@ -63,7 +68,9 @@ public class JortLink {
 			System.setProperty("networkaddress.cache.ttl", "30");
 			System.setProperty("networkaddress.cache.negative.ttl", "10");
 			AsyncSimpleLog.setAnsi(true);
+			AsyncSimpleLog.silence(Pattern.compile("^(Started|Stopped) Server(Connector)?@"));
 			AsyncSimpleLog.startLogging();
+			log.info("This jort.link has Super Denim Powers");
 			
 			Stopwatch initSw = Stopwatch.createStarted();
 			config = Jankson.builder()
@@ -94,7 +101,7 @@ public class JortLink {
 				.mapMulti(JortLink::strings)
 				.forEach(ignoredHosts::add);
 			
-			Server server = new Server();
+			server = new Server();
 			ServerConnector conn = new ServerConnector(server);
 			conn.setHost(host);
 			conn.setPort(port);
@@ -102,7 +109,7 @@ public class JortLink {
 			server.setHandler(new OuterHandler(new JortLinkHandler()));
 			server.setErrorHandler(new JortErrorHandler());
 			server.start();
-			log.info("Ready on http://{}:{}", host, port);
+			log.info("jort.link v{} ready on http://{}:{} after {}", VERSION, host, port, initSw);
 			
 			SCHED.scheduleWithFixedDelay(() -> {
 				try {
@@ -118,12 +125,38 @@ public class JortLink {
 				}
 			}, 0, 4, TimeUnit.HOURS);
 			
-			log.info("This JortLink has Super Denim Powers. (Done in {})", initSw);
+			try {
+				Signal.handle(new Signal("TERM"), (sig) -> {
+					doStop();
+				});
+				Signal.handle(new Signal("INT"), (sig) -> {
+					doStop();
+				});
+			} catch (Throwable t) {}
 		} catch (Throwable t) {
 			log.error("Failed to start", t);
 		}
 	}
 	
+	private static boolean stopping = false;
+	
+	private static void doStop() {
+		System.out.println(); // get ^C out of the way
+		if (stopping) {
+			log.warn("Aborting!");
+			System.exit(1);
+			return;
+		}
+		stopping = true;
+		log.info("Stopping");
+		try {
+			server.stop();
+		} catch (Exception e) {
+			log.error("Failed to stop Jetty", e);
+		}
+		SCHED.shutdown();
+	}
+
 	private static void strings(JsonElement ele, Consumer<String> out) {
 		if (ele instanceof JsonPrimitive jp) out.accept(jp.asString());
 	}

@@ -5,6 +5,9 @@ plugins {
 
 sourceCompatibility = targetCompatibility = 17
 
+archivesBaseName = 'jortlink'
+version = '1.1.5'
+
 repositories {
 	mavenCentral()
 	maven { url 'https://repo.unascribed.com' }
@@ -23,8 +26,17 @@ dependencies {
 	implementation 'com.unascribed:asyncsimplelog:4.6.1'
 }
 
+jar {
+	destinationDirectory.set(file('build/tmp'))
+	classifier = 'slim'
+}
+
 shadowJar {
+	classifier = ''
 	manifest.attributes (
-		'Main-Class': 'link.jort.JortLink'
+		'Main-Class': 'link.jort.JortLink',
+		'Implementation-Version': version
 	)
 }
+
+tasks.build.dependsOn shadowJar

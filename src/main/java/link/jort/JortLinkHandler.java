@@ -24,6 +24,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
 
+import org.eclipse.jetty.http.CompressedContentFormat;
 import org.eclipse.jetty.http.HttpHeader;
 import org.eclipse.jetty.http.HttpStatus;
 import org.eclipse.jetty.io.EofException;
@@ -86,7 +87,7 @@ public final class JortLinkHandler extends HandlerWrapper {
 	
 	private static final Splitter SLASH_SPLITTER2 = Splitter.on('/').limit(2).omitEmptyStrings();
 	private static final Splitter SLASH_SPLITTER3 = Splitter.on('/').limit(3).omitEmptyStrings();
-	
+
 	private static final Pattern CONTENT_TYPE_PATTERN = Pattern.compile("^([^;]*)(?:$|;\\s*(?:charset=(.*))?)");
 	
 	private static final Escaper LINK_ESCAPER = Escapers.builder()
@@ -100,6 +101,11 @@ public final class JortLinkHandler extends HandlerWrapper {
 		resource.setDirectoriesListed(false);
 		resource.setWelcomeFiles(new String[] {"index.html"});
 		resource.setCacheControl("public, max-age=86400");
+		resource.setRedirectWelcome(false);
+		resource.setPrecompressedFormats(new CompressedContentFormat[] {
+				CompressedContentFormat.GZIP,
+				CompressedContentFormat.BR
+		});
 		setHandler(resource);
 	}
 
@@ -131,10 +137,12 @@ public final class JortLinkHandler extends HandlerWrapper {
 		}
 		String ua = request.getHeader("User-Agent");
 		boolean fedi = false;
-		for (var p : JortLink.uaPatterns) {
-			if (p.matcher(ua).find()) {
-				fedi = true;
-				break;
+		if (ua != null) {
+			for (var p : JortLink.uaPatterns) {
+				if (p.matcher(ua).find()) {
+					fedi = true;
+					break;
+				}
 			}
 		}
 		response.setHeader("Vary", "User-Agent");
