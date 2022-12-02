@@ -290,7 +290,7 @@ public final class JortLinkHandler extends HandlerWrapper {
 									// rewrite potentially interesting links to use jort.link
 									doc.getElementsByTag("meta").forEach(processLink("content"));
 									doc.getElementsByTag("link").forEach(processLink("href"));
-									doc.getElementsByTag("img").forEach(processLink("href"));
+									doc.getElementsByTag("img").forEach(processLink("src"));
 									Charset ch;
 									try {
 										ch = Charset.forName(charset);
@@ -393,7 +393,7 @@ public final class JortLinkHandler extends HandlerWrapper {
 	}
 
 	private boolean isCanonicalMeta(String attr) {
-		if (attr == null) return true; // to be safe
+		if (attr == null) return false;
 		return switch (attr) {
 			case "og:url" -> true;
 			case "canonical" -> true;
